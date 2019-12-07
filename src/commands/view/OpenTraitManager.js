@@ -1,8 +1,11 @@
-const $ = require('backbone').$;
+import Backbone from 'backbone';
 
-module.exports = {
+const $ = Backbone.$;
+
+export default {
   run(editor, sender) {
     this.sender = sender;
+    const em = editor.getModel();
 
     var config = editor.Config;
     var pfx = config.stylePrefix;
@@ -16,11 +19,13 @@ module.exports = {
       this.$cn2 = $('<div></div>');
       this.$cn.append(this.$cn2);
       this.$header = $('<div>').append(
-        `<div class="${confTm.stylePrefix}header">${confTm.textNoElement}</div>`
+        `<div class="${confTm.stylePrefix}header">${em.t(
+          'traitManager.empty'
+        )}</div>`
       );
       this.$cn.append(this.$header);
       this.$cn2.append(
-        `<div class="${pfx}traits-label">${confTm.labelContainer}</div>`
+        `<div class="${pfx}traits-label">${em.t('traitManager.label')}</div>`
       );
       this.$cn2.append(tmView.render().el);
       var panels = editor.Panels;
@@ -34,7 +39,7 @@ module.exports = {
         .trigger('change:appendContent');
 
       this.target = editor.getModel();
-      this.listenTo(this.target, 'change:selectedComponent', this.toggleTm);
+      this.listenTo(this.target, 'component:toggled', this.toggleTm);
     }
 
     this.toggleTm();
@@ -48,7 +53,7 @@ module.exports = {
     const sender = this.sender;
     if (sender && sender.get && !sender.get('active')) return;
 
-    if (this.target.get('selectedComponent')) {
+    if (this.target.getSelectedAll().length === 1) {
       this.$cn2.show();
       this.$header.hide();
     } else {

@@ -1,6 +1,7 @@
+import Backbone from 'backbone';
 import { isUndefined } from 'underscore';
 
-module.exports = require('backbone').Model.extend({
+export default Backbone.Model.extend({
   defaults: {
     type: 'text', // text, number, range, select
     label: '',
@@ -32,29 +33,51 @@ module.exports = require('backbone').Model.extend({
     }
   },
 
+  /**
+   * Return all the propeties
+   * @returns {Object}
+   */
+  props() {
+    return this.attributes;
+  },
+
   targetUpdated() {
     const value = this.getTargetValue();
-    !isUndefined(value) && this.set({ value }, { fromTarget: 1 });
+    this.set({ value }, { fromTarget: 1 });
   },
 
   getTargetValue() {
     const name = this.get('name');
     const target = this.target;
-    const prop = this.get('changeProp');
-    if (target) return prop ? target.get(name) : target.getAttributes()[name];
+    let value;
+
+    if (this.get('changeProp')) {
+      value = target.get(name);
+    } else {
+      value = target.getAttributes()[name];
+    }
+
+    return !isUndefined(value) ? value : '';
   },
 
-  setTargetValue(value) {
+  setTargetValue(value, opts = {}) {
     const target = this.target;
     const name = this.get('name');
     if (isUndefined(value)) return;
+    let valueToSet = value;
+
+    if (value === 'false') {
+      valueToSet = false;
+    } else if (value === 'true') {
+      valueToSet = true;
+    }
 
     if (this.get('changeProp')) {
-      target.set(name, value);
+      target.set(name, valueToSet, opts);
     } else {
       const attrs = { ...target.get('attributes') };
-      attrs[name] = value;
-      target.set('attributes', attrs);
+      attrs[name] = valueToSet;
+      target.set('attributes', attrs, opts);
     }
   },
 

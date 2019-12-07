@@ -1,17 +1,19 @@
-const PropertyView = require('./PropertyView');
+import { isString } from 'underscore';
+import Backbone from 'backbone';
+import PropertyView from './PropertyView';
+
 const $ = Backbone.$;
 
-module.exports = PropertyView.extend({
+export default PropertyView.extend({
   templateInput() {
-    const pfx = this.pfx;
-    const ppfx = this.ppfx;
-    const assetsLabel = this.config.assetsLabel || 'Images';
+    const { pfx, em } = this;
+
     return `
     <div class="${pfx}field ${pfx}file">
       <div id='${pfx}input-holder'>
         <div class="${pfx}btn-c">
           <button class="${pfx}btn" id="${pfx}images" type="button">
-            ${assetsLabel}
+            ${em.t('styleManager.fileButton')}
           </button>
         </div>
         <div style="clear:both;"></div>
@@ -48,6 +50,12 @@ module.exports = PropertyView.extend({
     }
 
     this.setValue(this.componentValue, 0);
+  },
+
+  clearCached() {
+    PropertyView.prototype.clearCached.apply(this, arguments);
+    this.$preview = null;
+    this.$previewBox = null;
   },
 
   setValue(value, f) {
@@ -112,19 +120,20 @@ module.exports = PropertyView.extend({
    * @return void
    * */
   openAssetManager(e) {
-    var that = this;
-    var em = this.em;
-    var editor = em ? em.get('Editor') : '';
+    const { em, modal } = this;
+    const editor = em ? em.get('Editor') : '';
 
     if (editor) {
-      this.modal.setTitle('Select image');
-      this.modal.setContent(this.am.getContainer());
-      this.am.setTarget(null);
       editor.runCommand('open-assets', {
-        target: this.model,
-        onSelect(target) {
-          that.modal.close();
-          that.spreadUrl(target.get('src'));
+        types: ['image'],
+        accept: 'image/*',
+        target: this.getTargetModel(),
+        onClick() {},
+        onDblClick() {},
+        onSelect: asset => {
+          modal.close();
+          const url = isString(asset) ? asset : asset.get('src');
+          this.spreadUrl(url);
         }
       });
     }

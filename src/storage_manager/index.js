@@ -1,21 +1,49 @@
 /**
- * Before using methods you should get first the module from the editor instance, in this way:
+ * You can customize the initial state of the module from the editor initialization, by passing the following [Configuration Object](https://github.com/artf/grapesjs/blob/master/src/storage_manager/config/config.js)
+ * ```js
+ * const editor = grapesjs.init({
+ *  storageManager: {
+ *    // options
+ *  }
+ * })
+ * ```
+ *
+ * Once the editor is instantiated you can use its API. Before using these methods you should get the module from the instance
  *
  * ```js
- * var storageManager = editor.StorageManager;
+ * const storageManager = editor.StorageManager;
  * ```
+ *
+ * * [getConfig](#getconfig)
+ * * [isAutosave](#isautosave)
+ * * [setAutosave](#setautosave)
+ * * [getStepsBeforeSave](#getstepsbeforesave)
+ * * [setStepsBeforeSave](#setstepsbeforesave)
+ * * [setStepsBeforeSave](#setstepsbeforesave)
+ * * [getStorages](#getstorages)
+ * * [getCurrent](#getcurrent)
+ * * [getCurrentStorage](#getcurrentstorage)
+ * * [setCurrent](#setcurrent)
+ * * [add](#add)
+ * * [get](#get)
+ * * [store](#store)
+ * * [load](#load)
+ *
+ * @module StorageManager
  */
-module.exports = () => {
-  var c = {},
-    defaults = require('./config/config'),
-    LocalStorage = require('./model/LocalStorage'),
-    RemoteStorage = require('./model/RemoteStorage');
 
+import defaults from './config/config';
+import LocalStorage from './model/LocalStorage';
+import RemoteStorage from './model/RemoteStorage';
+
+export default () => {
+  var c = {};
   let em;
   var storages = {};
   var defaultStorages = {};
   const eventStart = 'storage:start';
   const eventEnd = 'storage:end';
+  const eventError = 'storage:error';
 
   return {
     /**
@@ -43,14 +71,10 @@ module.exports = () => {
      * }
      * ...
      */
-    init(config) {
-      c = config || {};
+    init(config = {}) {
+      c = { ...defaults, ...config };
       em = c.em;
-
-      for (var name in defaults) {
-        if (!(name in c)) c[name] = defaults[name];
-      }
-
+      if (c._disable) c.type = 0;
       defaultStorages.remote = new RemoteStorage(c);
       defaultStorages.local = new LocalStorage(c);
       c.currentStorage = c.type;
@@ -111,15 +135,17 @@ module.exports = () => {
      * @return {this}
      * @example
      * storageManager.add('local2', {
-     *   load: function(keys, clb) {
+     *   load: function(keys, clb, clbErr) {
      *     var res = {};
      *     for (var i = 0, len = keys.length; i < len; i++){
      *       var v = localStorage.getItem(keys[i]);
      *       if(v) res[keys[i]] = v;
      *     }
      *     clb(res); // might be called inside some async method
+     *     // In case of errors...
+     *     // clbErr('Went something wrong');
      *   },
-     *   store: function(data, clb) {
+     *   store: function(data, clb, clbErr) {
      *     for(var key in data)
      *       localStorage.setItem(key, data[key]);
      *     clb(); // might be called inside some async method
@@ -184,10 +210,16 @@ module.exports = () => {
       }
 
       return st
-        ? st.store(toStore, res => {
-            clb && clb(res);
-            this.onEnd('store', res);
-          })
+        ? st.store(
+            toStore,
+            res => {
+              clb && clb(res);
+              this.onEnd('store', res);
+            },
+            err => {
+              this.onError('store', err);
+            }
+          )
         : null;
     },
 
@@ -216,17 +248,24 @@ module.exports = () => {
       }
 
       if (st) {
-        st.load(keysF, res => {
-          // Restore keys name
-          var reg = new RegExp('^' + c.id + '');
-          for (var itemKey in res) {
-            var itemKeyR = itemKey.replace(reg, '');
-            result[itemKeyR] = res[itemKey];
-          }
+        st.load(
+          keysF,
+          res => {
+            // Restore keys name
+            var reg = new RegExp('^' + c.id + '');
+            for (var itemKey in res) {
+              var itemKeyR = itemKey.replace(reg, '');
+              result[itemKeyR] = res[itemKey];
+            }
 
-          clb && clb(result);
-          this.onEnd('load', result);
-        });
+            clb && clb(result);
+            this.onEnd('load', result);
+          },
+          err => {
+            clb && clb(result);
+            this.onError('load', err);
+          }
+        );
       } else {
         clb && clb(result);
       }
@@ -269,6 +308,18 @@ module.exports = () => {
       if (em) {
         em.trigger(eventEnd);
         ctx && em.trigger(`${eventEnd}:${ctx}`, data);
+      }
+    },
+
+    /**
+     * On error callback
+     * @private
+     */
+    onError(ctx, data) {
+      if (em) {
+        em.trigger(eventError, data);
+        ctx && em.trigger(`${eventError}:${ctx}`, data);
+        this.onEnd(ctx, data);
       }
     },
 

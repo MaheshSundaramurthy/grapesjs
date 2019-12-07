@@ -1,25 +1,21 @@
-var Assets = require('asset_manager/model/Assets');
+import Assets from 'asset_manager/model/Assets';
 
-module.exports = {
-  run() {
-    describe('Assets', () => {
-      var obj;
+describe('Assets', () => {
+  var obj;
 
-      beforeEach(() => {
-        obj = new Assets();
-      });
+  beforeEach(() => {
+    obj = new Assets();
+  });
 
-      afterEach(() => {
-        obj = null;
-      });
+  afterEach(() => {
+    obj = null;
+  });
 
-      it('Object exists', () => {
-        expect(obj).toExist();
-      });
+  test('Object exists', () => {
+    expect(obj).toBeTruthy();
+  });
 
-      it('Collection is empty', () => {
-        expect(obj.length).toEqual(0);
-      });
-    });
-  }
-};
+  test('Collection is empty', () => {
+    expect(obj.length).toEqual(0);
+  });
+});

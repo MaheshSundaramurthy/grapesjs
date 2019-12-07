@@ -1,23 +1,20 @@
-var AssetView = require('./AssetView');
-var AssetImageView = require('./AssetImageView');
-var FileUploader = require('./FileUploader');
+import Backbone from 'backbone';
 
-module.exports = Backbone.View.extend({
+export default Backbone.View.extend({
   events: {
     submit: 'handleSubmit'
   },
 
-  template(view) {
-    const pfx = view.pfx;
-    const ppfx = view.ppfx;
+  template({ pfx, ppfx, em, ...view }) {
     return `
     <div class="${pfx}assets-cont">
       <div class="${pfx}assets-header">
         <form class="${pfx}add-asset">
           <div class="${ppfx}field ${pfx}add-field">
-            <input placeholder="${view.config.inputPlaceholder}"/>
+            <input placeholder="${em && em.t('assetManager.inputPlh')}"/>
           </div>
-          <button class="${ppfx}btn-prim">${view.config.addBtnText}</button>
+          <button class="${ppfx}btn-prim">${em &&
+      em.t('assetManager.addButton')}</button>
           <div style="clear:both"></div>
         </form>
       </div>
@@ -32,6 +29,7 @@ module.exports = Backbone.View.extend({
     this.config = o.config;
     this.pfx = this.config.stylePrefix || '';
     this.ppfx = this.config.pStylePrefix || '';
+    this.em = this.config.em;
     const coll = this.collection;
     this.listenTo(coll, 'reset', this.renderAssets);
     this.listenTo(coll, 'add', this.addToAsset);
@@ -59,7 +57,7 @@ module.exports = Backbone.View.extend({
     this.getAssetsEl().scrollTop = 0;
 
     if (handleAdd) {
-      handleAdd(url);
+      handleAdd.bind(this)(url);
     } else {
       this.options.globalCollection.add(url, { at: 0 });
     }

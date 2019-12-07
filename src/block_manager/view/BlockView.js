@@ -1,19 +1,58 @@
+import Backbone from 'backbone';
 import { isObject } from 'underscore';
 import { on, off, hasDnd } from 'utils/mixins';
 
-module.exports = Backbone.View.extend({
+export default Backbone.View.extend({
   events: {
+    click: 'handleClick',
     mousedown: 'startDrag',
     dragstart: 'handleDragStart',
+    drag: 'handleDrag',
     dragend: 'handleDragEnd'
   },
 
   initialize(o, config = {}) {
+    const { model } = this;
     this.em = config.em;
     this.config = config;
     this.endDrag = this.endDrag.bind(this);
     this.ppfx = config.pStylePrefix || '';
-    this.listenTo(this.model, 'destroy remove', this.remove);
+    this.listenTo(model, 'destroy remove', this.remove);
+    this.listenTo(model, 'change', this.render);
+  },
+
+  handleClick() {
+    const { config, model, em } = this;
+    if (!config.appendOnClick) return;
+    const sorter = config.getSorter();
+    const content = model.get('content');
+    const selected = em.getSelected();
+    sorter.setDropContent(content);
+    let target, valid;
+
+    // If there is a selected component, try first to append
+    // the block inside, otherwise, try to place it as a next sibling
+    if (selected) {
+      valid = sorter.validTarget(selected.getEl(), content);
+
+      if (valid.valid) {
+        target = selected;
+      } else {
+        const parent = selected.parent();
+        valid = sorter.validTarget(parent.getEl(), content);
+        if (valid.valid) target = parent;
+      }
+    }
+
+    // If no target found yet, try to append the block to the wrapper
+    if (!target) {
+      const wrapper = em.getWrapper();
+      valid = sorter.validTarget(wrapper.getEl(), content);
+      if (valid.valid) target = wrapper;
+    }
+
+    const result = target && target.append(content)[0];
+    result && em.setSelected(result, { scroll: 1 });
   },
 
   /**
@@ -21,10 +60,10 @@ module.exports = Backbone.View.extend({
    * @private
    */
   startDrag(e) {
-    const config = this.config;
+    const { config, em } = this;
     //Right or middel click
     if (e.button !== 0 || !config.getSorter || this.el.draggable) return;
-    config.em.refreshCanvas();
+    em.refreshCanvas();
     const sorter = config.getSorter();
     sorter.setDragHelper(this.el, e);
     sorter.setDropContent(this.model.get('content'));
@@ -33,20 +72,52 @@ module.exports = Backbone.View.extend({
   },
 
   handleDragStart(ev) {
-    const content = this.model.get('content');
+    const { em, model } = this;
+    const content = model.get('content');
     const isObj = isObject(content);
-    const type = isObj ? 'text/json' : 'text';
     const data = isObj ? JSON.stringify(content) : content;
+    em.set('dragResult');
 
     // Note: data are not available on dragenter for security reason,
-    // but will use dragContent as I need it for the Sorter context
+    // we have to use dragContent as we need it for the Sorter context
     // IE11 supports only 'text' data type
     ev.dataTransfer.setData('text', data);
-    this.em.set('dragContent', content);
+    em.set('dragContent', content);
+    em.trigger('block:drag:start', model, ev);
+  },
+
+  handleDrag(ev) {
+    this.em.trigger('block:drag', this.model, ev);
   },
 
   handleDragEnd() {
-    this.em.set('dragContent', '');
+    const { em, model } = this;
+    const result = em.get('dragResult');
+
+    if (result) {
+      const oldKey = 'activeOnRender';
+      const oldActive = result.get && result.get(oldKey);
+
+      if (model.get('activate') || oldActive) {
+        result.trigger('active');
+        result.set(oldKey, 0);
+      }
+
+      if (model.get('select')) {
+        em.setSelected(result);
+      }
+
+      if (model.get('resetId')) {
+        result.onAll(model => model.resetId());
+      }
+    }
+
+    em.set({
+      dragResult: null,
+      dragContent: null
+    });
+
+    em.trigger('block:drag:stop', result, model);
   },
 
   /**
@@ -66,14 +137,21 @@ module.exports = Backbone.View.extend({
   },
 
   render() {
-    const el = this.el;
-    const pfx = this.ppfx;
-    const className = `${pfx}block`;
-    const label = this.model.get('label');
-    el.className += ` ${className} ${pfx}one-bg ${pfx}four-color-h`;
-    el.innerHTML = `<div class="${className}-label">${label}</div>`;
+    const { em, el, ppfx, model } = this;
+    const className = `${ppfx}block`;
+    const label =
+      (em && em.t(`blockManager.labels.${model.id}`)) || model.get('label');
+    const render = model.get('render');
+    const media = model.get('media');
+    el.className += ` ${className} ${ppfx}one-bg ${ppfx}four-color-h`;
+    el.innerHTML = `
+      ${media ? `<div class="${className}__media">${media}</div>` : ''}
+      <div class="${className}-label">${label}</div>
+    `;
     el.title = el.textContent.trim();
-    hasDnd(this.em) && el.setAttribute('draggable', true);
+    hasDnd(em) && el.setAttribute('draggable', true);
+    const result = render && render({ el, model, className, prefix: ppfx });
+    if (result) el.innerHTML = result;
     return this;
   }
 });
